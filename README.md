@@ -186,6 +186,43 @@ Add systemd service for auto-restart, nginx for reverse proxy.
 
 **Note**: SQLite is not ideal for serverless; consider PostgreSQL/MySQL for production deployments.
 
+## AWS Serverless Alternative (Lambda + API Gateway)
+
+An AWS-ready deployment lives alongside the current solution. It does NOT replace Docker or local setup.
+
+Included files:
+- `aws/handler.py`: Lambda entrypoint that wraps the existing FastAPI app with Mangum
+- `aws/template.yaml`: AWS SAM template to deploy a Lambda + HTTP API (API Gateway)
+- `requirements.txt`: includes `mangum` for Lambda support
+
+Deploy with AWS SAM:
+
+```powershell
+# 1) Install AWS SAM CLI if needed:
+#    https://docs.aws.amazon.com/serverless-application-model/
+
+# 2) Build (installs requirements into the build artifact)
+sam build --use-container
+
+# 3) Deploy (guided on first run: choose stack name, region)
+sam deploy --guided
+
+# After deploy, SAM prints the ApiUrl output; open it in a browser:
+#   https://xxxx.execute-api.<region>.amazonaws.com
+# Swagger UI: <ApiUrl>/docs
+```
+
+Environment and storage notes:
+- The template sets `DATABASE_URL=sqlite:////tmp/sql_app.db` (ephemeral per cold start). Suitable for demos.
+- For production, switch to a managed DB (Amazon RDS/Aurora Serverless or DynamoDB) and update `DATABASE_URL`.
+- No code changes are required; the FastAPI app is reused as-is via `aws/handler.py`.
+
+Remove the stack:
+
+```powershell
+sam delete
+```
+
 ## API Overview
 
 Prefix: `/api/v1`

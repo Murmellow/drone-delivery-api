@@ -1,0 +1,50 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Drone Delivery API - AWS Serverless (Lambda + API Gateway HTTP API)
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 30
+    MemorySize: 1024
+    Architectures:
+      - x86_64
+
+Resources:
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowMethods: ['*']
+        AllowOrigins: ['*']
+        AllowHeaders: ['*']
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: aws/handler.handler
+      Events:
+        Proxy:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /{proxy+}
+            Method: ANY
+        Root:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /
+            Method: ANY
+      Environment:
+        Variables:
+          API_V1_STR: /api/v1
+          # SQLite on Lambda is ephemeral; the DB will be recreated on cold starts
+          # For production, switch to RDS/Aurora or DynamoDB and adjust DATABASE_URL accordingly
+          DATABASE_URL: sqlite:////tmp/sql_app.db
+
+Outputs:
+  ApiUrl:
+    Description: Base URL for the deployed HTTP API
+    Value: !GetAtt HttpApi.ApiEndpoint
