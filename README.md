@@ -160,6 +160,41 @@ sequenceDiagram
     API-->>C: Delivery Complete Notification
 ```
 
+### Existing Customer Order-to-Delivery (with cargo)
+
+This diagram focuses specifically on the “existing_customer” demo flow: an existing customer places an order, the warehouse loads cargo onto an available drone, a delivery is created (only when cargo is loaded), and the delivery is completed with automatic cargo unload.
+
+```mermaid
+sequenceDiagram
+  participant Cust as Existing Customer
+  participant API as Drone Delivery API
+  participant DB as Database
+  participant W as Warehouse
+  participant D as Drone
+
+  Note over Cust,API: Customer already exists (profile + location)
+  Cust->>API: POST /orders (Widget x1, Gadget x1)
+  API->>DB: Create order for existing customer
+  DB-->>API: Order ID
+
+  Note over W,D: Load cargo at warehouse
+  W->>API: POST /drones/{id}/load (Widget, 0.5kg)
+  API->>DB: Validate capacity; update current_cargo; set status=LOADED
+  W->>API: POST /drones/{id}/load (Gadget, 1.0kg)
+  API->>DB: Update current_cargo; total_weight=1.5kg
+
+  Note over API,D: Create delivery (requires cargo loaded)
+  API->>DB: POST /drones/deliveries (start=warehouse, dest=customer)
+  DB-->>API: Delivery ID, distance_km, eta_minutes
+  API-->>D: Assign delivery; set status=IN_DELIVERY
+
+  Note over D: Drone in transit to customer
+  D->>API: PATCH /deliveries/{id}/complete
+  API->>DB: Mark completed; auto-unload cargo; set drone status=AVAILABLE; move location=destination
+  DB-->>API: Updated delivery and drone
+  API-->>Cust: Delivery complete
+```
+
 ### Cargo Management & Restocking Workflow
 
 This diagram details the drone restocking process with cargo loading and capacity validation:
