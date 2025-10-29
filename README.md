@@ -172,26 +172,32 @@ sequenceDiagram
   participant W as Warehouse
   participant D as Drone
 
-  Note over Cust,API: Customer already exists (profile + location)
+  Note over Cust,API: Customer already exists (profile and location)
   Cust->>API: POST /orders (Widget x1, Gadget x1)
   API->>DB: Create order for existing customer
-  DB-->>API: Order ID
+  DB-->>API: Return order id
 
   Note over W,D: Load cargo at warehouse
-  W->>API: POST /drones/{id}/load (Widget, 0.5kg)
-  API->>DB: Validate capacity; update current_cargo; set status=LOADED
-  W->>API: POST /drones/{id}/load (Gadget, 1.0kg)
-  API->>DB: Update current_cargo; total_weight=1.5kg
+  W->>API: POST /drones/drone_id/load (Widget 0.5kg)
+  API->>DB: Validate capacity
+  API->>DB: Add cargo entry (Widget)
+  API->>DB: Set drone status to LOADED
+  W->>API: POST /drones/drone_id/load (Gadget 1.0kg)
+  API->>DB: Add cargo entry (Gadget)
+  API->>DB: Update total weight to 1.5kg
 
   Note over API,D: Create delivery (requires cargo loaded)
-  API->>DB: POST /drones/deliveries (start=warehouse, dest=customer)
-  DB-->>API: Delivery ID, distance_km, eta_minutes
-  API-->>D: Assign delivery; set status=IN_DELIVERY
+  API->>DB: Create delivery (start=warehouse, dest=customer)
+  DB-->>API: Return delivery id and ETA
+  API-->>D: Assign delivery and set IN_DELIVERY
 
   Note over D: Drone in transit to customer
-  D->>API: PATCH /deliveries/{id}/complete
-  API->>DB: Mark completed; auto-unload cargo; set drone status=AVAILABLE; move location=destination
-  DB-->>API: Updated delivery and drone
+  D->>API: PATCH /deliveries/delivery_id/complete
+  API->>DB: Mark delivery completed
+  API->>DB: Auto unload cargo
+  API->>DB: Set drone status to AVAILABLE
+  API->>DB: Move drone location to destination
+  DB-->>API: Return updated records
   API-->>Cust: Delivery complete
 ```
 
