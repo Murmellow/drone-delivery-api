@@ -99,6 +99,284 @@ graph LR
   lambda_aws -.-> main
 ```
 
+## Workflow Diagrams
+
+### Complete Order-to-Delivery Flow
+
+This diagram shows the end-to-end process from customer order creation to successful delivery:
+
+```mermaid
+sequenceDiagram
+    participant C as Customer
+    participant API as Drone Delivery API
+    participant DB as Database
+    participant D as Drone
+    participant W as Warehouse
+
+    Note over C,W: Setup Phase
+    C->>API: Create Customer with Location
+    API->>DB: Store Customer
+    API-->>C: Customer ID
+    
+    W->>API: Create Items in Inventory
+    API->>DB: Store Items
+    
+    W->>API: Register Drone at Warehouse
+    API->>DB: Store Drone (status: available)
+    
+    Note over C,W: Order Phase
+    C->>API: POST /orders (items + quantities)
+    API->>DB: Create Order
+    DB-->>API: Order ID
+    API-->>C: Order Created (status: pending)
+    
+    Note over C,W: Restocking Phase
+    W->>API: POST /drones/{id}/load (item_id, quantity, weight)
+    API->>DB: Check drone capacity
+    API->>DB: Update cargo + status=loaded
+    DB-->>API: Drone Updated
+    API-->>W: Cargo Loaded Successfully
+    
+    Note over C,W: Delivery Assignment
+    API->>API: POST /drones/deliveries
+    API->>DB: Check drone status=loaded
+    API->>DB: Calculate distance & ETA
+    API->>DB: Create Delivery (status: in_delivery)
+    DB-->>API: Delivery ID
+    API-->>D: Delivery Assignment
+    
+    Note over D: Drone travels to customer
+    D->>D: Navigate to destination
+    D->>D: Deliver package
+    
+    Note over C,W: Completion Phase
+    D->>API: PATCH /deliveries/{id}/complete
+    API->>DB: Mark delivery complete
+    API->>DB: Unload cargo
+    API->>DB: Update drone status=available
+    API->>DB: Update drone location=destination
+    DB-->>API: Delivery Complete
+    API-->>D: Confirmation
+    API-->>C: Delivery Complete Notification
+```
+
+### Cargo Management & Restocking Workflow
+
+This diagram details the drone restocking process with cargo loading and capacity validation:
+
+```mermaid
+flowchart TD
+    Start([Drone at Warehouse]) --> CheckStatus{Check Drone<br/>Status}
+    CheckStatus -->|available| LoadRequest[POST /drones/id/load]
+    CheckStatus -->|restocking| LoadRequest
+    CheckStatus -->|Other Status| Error1[Error: Drone not available<br/>for loading]
+    
+    LoadRequest --> ValidateCapacity{Current Weight +<br/>New Weight ≤<br/>Payload Capacity?}
+    ValidateCapacity -->|No| Error2[Error: Payload capacity<br/>exceeded]
+    ValidateCapacity -->|Yes| UpdateCargo[Add item to current_cargo]
+    
+    UpdateCargo --> UpdateWeight[Update current_weight]
+    UpdateWeight --> SetLoaded[Set status = LOADED]
+    SetLoaded --> CargoReady{More Items<br/>to Load?}
+    
+    CargoReady -->|Yes| LoadRequest
+    CargoReady -->|No| ReadyForDelivery[Drone Ready for Delivery]
+    
+    ReadyForDelivery --> CreateDelivery[POST /drones/deliveries]
+    CreateDelivery --> ValidateLoaded{Drone status<br/>= LOADED?}
+    ValidateLoaded -->|No| Error3[Error: Drone has no<br/>cargo loaded]
+    ValidateLoaded -->|Yes| SetInDelivery[Set status = IN_DELIVERY]
+    
+    SetInDelivery --> Navigate[Drone navigates<br/>to destination]
+    Navigate --> CompleteDelivery[PATCH /deliveries/id/complete]
+    CompleteDelivery --> UnloadCargo[Auto-unload all cargo]
+    UnloadCargo --> ResetWeight[Reset current_weight = 0]
+    ResetWeight --> SetAvailable[Set status = AVAILABLE]
+    SetAvailable --> UpdateLocation[Update current_location<br/>to destination]
+    UpdateLocation --> End([Delivery Complete])
+    
+    Error1 --> End
+    Error2 --> End
+    Error3 --> End
+    
+    style Start fill:#90EE90
+    style End fill:#87CEEB
+    style Error1 fill:#FFB6C1
+    style Error2 fill:#FFB6C1
+    style Error3 fill:#FFB6C1
+    style ReadyForDelivery fill:#FFD700
+    style SetInDelivery fill:#FFA500
+```
+
+### Drone Status State Machine
+
+This diagram shows all possible drone status transitions and the events that trigger them:
+
+```mermaid
+stateDiagram-v2
+    [*] --> available: Drone registered
+    
+    available --> restocking: Manual status update
+    available --> loaded: Cargo loaded (POST /drones/id/load)
+    available --> charging: Manual status update
+    available --> maintenance: Manual status update
+    available --> offline: Manual status update
+    
+    restocking --> loaded: Cargo loaded (POST /drones/id/load)
+    restocking --> available: Manual status update
+    
+    loaded --> in_delivery: Delivery created (POST /deliveries)
+    loaded --> available: Cargo unloaded (POST /drones/id/unload)
+    
+    in_delivery --> available: Delivery completed (PATCH /deliveries/id/complete)
+    in_delivery --> maintenance: Emergency maintenance
+    
+    charging --> available: Charging complete
+    charging --> maintenance: Maintenance required
+    
+    maintenance --> available: Maintenance complete
+    maintenance --> offline: Drone decommissioned
+    
+    offline --> maintenance: Reactivation for repair
+    offline --> available: Reactivation
+    
+    note right of available
+        Can accept new cargo
+        Can be assigned deliveries
+    end note
+    
+    note right of loaded
+        Has cargo onboard
+        Ready for delivery assignment
+        Checks: cargo weight ≤ capacity
+    end note
+    
+    note right of in_delivery
+        Actively delivering
+        Cannot accept new deliveries
+        Automatic unload on completion
+    end note
+```
+
+### Multi-Order Queue Management
+
+This diagram illustrates how the system handles multiple orders when drones are busy:
+
+```mermaid
+sequenceDiagram
+    participant C1 as Customer 1
+    participant C2 as Customer 2
+    participant API as API
+    participant D as Drone (DRN-001)
+    
+    Note over C1,D: Scenario: Single Drone, Multiple Orders
+    
+    C1->>API: POST /orders (Order 1)
+    API-->>C1: Order 1 Created
+    
+    Note over API,D: Load cargo for Order 1
+    API->>D: POST /drones/1/load (Order 1 items)
+    D-->>API: Status: LOADED
+    
+    API->>D: POST /deliveries (Order 1, Drone 1)
+    D-->>API: Delivery 1 Created
+    Note over D: Status: IN_DELIVERY
+    
+    rect rgb(255, 200, 200)
+        Note over C2,D: Order 2 arrives while drone is busy
+        C2->>API: POST /orders (Order 2)
+        API-->>C2: Order 2 Created
+        
+        Note over API,D: Attempt to load cargo
+        API->>D: POST /drones/1/load (Order 2 items)
+        D-->>API: Error 400: Drone not available
+        
+        Note over API,D: Attempt to assign delivery
+        API->>D: POST /deliveries (Order 2, Drone 1)
+        D-->>API: Error 400: Drone is not available
+    end
+    
+    Note over D: Drone completes delivery 1
+    D->>API: PATCH /deliveries/1/complete
+    API->>D: Auto-unload cargo
+    API->>D: Update status: AVAILABLE
+    D-->>API: Delivery 1 Complete
+    
+    rect rgb(200, 255, 200)
+        Note over C2,D: Now drone is available for Order 2
+        API->>D: POST /drones/1/load (Order 2 items)
+        D-->>API: Status: LOADED
+        
+        API->>D: POST /deliveries (Order 2, Drone 1)
+        D-->>API: Delivery 2 Created
+        Note over D: Status: IN_DELIVERY
+    end
+    
+    D->>API: PATCH /deliveries/2/complete
+    API->>D: Auto-unload cargo
+    API->>D: Update status: AVAILABLE
+    D-->>API: Delivery 2 Complete
+    C2->>C2: Receives package
+```
+
+### API Endpoint Relationships
+
+This diagram shows how different API endpoints interact with each other:
+
+```mermaid
+graph TB
+    subgraph Resources["Resource Management"]
+        Locations["/locations<br/>POST, GET"]
+        Customers["/customers<br/>POST, GET"]
+        Items["/items<br/>POST, GET"]
+        Drones["/drones<br/>POST, GET"]
+    end
+    
+    subgraph Operations["Core Operations"]
+        Orders["/orders<br/>POST, GET"]
+        LoadCargo["/drones/{id}/load<br/>POST"]
+        UnloadCargo["/drones/{id}/unload<br/>POST"]
+        Deliveries["/drones/deliveries<br/>POST, GET"]
+        CompleteDelivery["/deliveries/{id}/complete<br/>PATCH"]
+        DroneStatus["/drones/{id}/status<br/>PATCH"]
+    end
+    
+    subgraph Demo["Demo & Testing"]
+        DemoFlow["/demo/flow<br/>POST"]
+        BehaveTests["Behave BDD Tests"]
+    end
+    
+    %% Dependencies
+    Customers --> Locations
+    Drones --> Locations
+    Orders --> Customers
+    Orders --> Items
+    
+    LoadCargo --> Drones
+    LoadCargo --> Items
+    UnloadCargo --> Drones
+    
+    Deliveries --> Orders
+    Deliveries --> Drones
+    Deliveries --> Locations
+    Deliveries -.->|requires| LoadCargo
+    
+    CompleteDelivery --> Deliveries
+    CompleteDelivery -.->|auto-triggers| UnloadCargo
+    
+    DroneStatus --> Drones
+    
+    DemoFlow -.->|orchestrates| Resources
+    DemoFlow -.->|orchestrates| Operations
+    BehaveTests -.->|validates| Resources
+    BehaveTests -.->|validates| Operations
+    
+    style LoadCargo fill:#FFD700
+    style Deliveries fill:#FFA500
+    style CompleteDelivery fill:#87CEEB
+    style DemoFlow fill:#90EE90
+```
+
 ## Tech Stack
 
 - Python 3.14
