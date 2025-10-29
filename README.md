@@ -300,6 +300,61 @@ Prefix: `/api/v1`
 6) Create a delivery for the order using the drone.
 7) Complete the delivery (drone returns to `available` at destination).
 
+### Restocking Workflow (Cargo Management)
+
+The system now supports explicit cargo tracking for drones. Before a delivery can be created, items must be loaded onto the drone at a warehouse location.
+
+**Drone Status Lifecycle with Cargo:**
+- `available` → Can load cargo
+- `restocking` → At warehouse preparing to load
+- `loaded` → Has cargo onboard, ready for delivery
+- `in_delivery` → Actively delivering
+- `available` → After delivery completion (cargo auto-unloads)
+
+**Workflow:**
+
+1) **Load Cargo at Warehouse**  
+   `POST /drones/{drone_id}/load`
+   ```json
+   {
+     "item_id": 1,
+     "quantity": 2,
+     "weight_kg": 3.5
+   }
+   ```
+   - Drone must be at warehouse and in `available` or `restocking` status
+   - Checks payload capacity
+   - Updates drone status to `loaded`
+   - Tracks cargo in `current_cargo` field
+
+2) **Create Delivery**  
+   `POST /drones/deliveries/`
+   - Now requires drone to have cargo loaded (status must be `loaded`)
+   - Returns 400 error if drone has no cargo: "Drone has no cargo loaded. Load items onto the drone first"
+
+3) **Complete Delivery**  
+   `PATCH /drones/deliveries/{id}/complete`
+   - Automatically unloads all cargo
+   - Sets drone status back to `available`
+   - Moves drone to destination location
+
+**Manual Unload (if needed):**  
+`POST /drones/{drone_id}/unload`
+```json
+{
+  "item_id": 1,
+  "quantity": 1
+}
+```
+
+**Example Restocking Scenario:**
+- Drone is `available` at warehouse
+- Customer orders item
+- Load item onto drone → drone becomes `loaded`
+- Create delivery → drone becomes `in_delivery`
+- Complete delivery → cargo unloads, drone becomes `available` at customer location
+- Drone flies back to warehouse for next order (location management is manual for now)
+
 ## Demo Flows (one-call scenarios)
 
 Endpoint: `POST /api/v1/demo/flow`

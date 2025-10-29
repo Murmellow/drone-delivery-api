@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from typing import Any
 
 class DroneBase(BaseModel):
     model: str
@@ -15,9 +16,22 @@ class Drone(DroneBase):
     battery_level: float
     status: str
     is_active: bool
+    current_cargo: list[dict[str, Any]] = []
+    current_weight: float = 0.0
 
     class Config:
         from_attributes = True
+
+class LoadCargoRequest(BaseModel):
+    """Request to load items onto a drone at a warehouse"""
+    item_id: int
+    quantity: int = Field(..., gt=0)
+    weight_kg: float = Field(..., gt=0)
+
+class UnloadCargoRequest(BaseModel):
+    """Request to unload items from a drone"""
+    item_id: int
+    quantity: int = Field(..., gt=0)
 
 class DeliveryBase(BaseModel):
     order_id: int

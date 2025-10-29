@@ -5,8 +5,8 @@ from app.core.database import get_db
 from app.models import drone as drone_models
 from app.models import order as order_models
 from app.schemas import drone as schemas
-from datetime import datetime, timezone
 import math
+from typing import Any
 router = APIRouter(prefix="/drones", tags=["drones"])
 
 def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -149,6 +149,111 @@ def update_drone_status(
     db.refresh(drone)
     return drone
 
+@router.post("/{drone_id}/load", response_model=schemas.Drone)
+def load_cargo(
+    drone_id: int,
+    cargo: schemas.LoadCargoRequest,
+    db: Session = Depends(get_db)
+) -> drone_models.Drone:
+    """Load items onto a drone at a warehouse. Drone must be at a warehouse location and in AVAILABLE or RESTOCKING status."""
+    drone: drone_models.Drone | None = db.query(drone_models.Drone).filter(drone_models.Drone.id == drone_id).first()
+    if drone is None:
+        raise HTTPException(status_code=404, detail="Drone not found")
+    
+    # Check drone status
+    if drone.status not in [drone_models.DroneStatus.AVAILABLE.value, drone_models.DroneStatus.RESTOCKING.value]:
+        raise HTTPException(status_code=400, detail=f"Drone must be available or restocking to load cargo (current status: {drone.status})")
+    
+    # Check payload capacity - cast to Any for runtime values
+    current_weight: float = getattr(drone, "current_weight", 0.0)
+    new_weight = current_weight + cargo.weight_kg
+    payload_capacity: float = getattr(drone, "payload_capacity", 0.0)
+    if new_weight > payload_capacity:
+        raise HTTPException(status_code=400, detail=f"Exceeds payload capacity ({new_weight} kg > {payload_capacity} kg)")
+    
+    # Add to cargo manifest
+    cargo_data: Any = getattr(drone, "current_cargo", None)
+    current_cargo: list[dict[str, Any]] = list(cargo_data) if cargo_data else []
+    
+    # Check if item already exists in cargo
+    found = False
+    for item in current_cargo:
+        if item.get("item_id") == cargo.item_id:
+            item["quantity"] = item.get("quantity", 0) + cargo.quantity
+            item["weight_kg"] = item.get("weight_kg", 0.0) + cargo.weight_kg
+            found = True
+            break
+    
+    if not found:
+        current_cargo.append({
+            "item_id": cargo.item_id,
+            "quantity": cargo.quantity,
+            "weight_kg": cargo.weight_kg
+        })
+    
+    setattr(drone, "current_cargo", current_cargo)
+    setattr(drone, "current_weight", new_weight)
+    setattr(drone, "status", drone_models.DroneStatus.LOADED.value)
+    
+    db.commit()
+    db.refresh(drone)
+    return drone
+
+@router.post("/{drone_id}/unload", response_model=schemas.Drone)
+def unload_cargo(
+    drone_id: int,
+    cargo: schemas.UnloadCargoRequest,
+    db: Session = Depends(get_db)
+) -> drone_models.Drone:
+    """Unload items from a drone. This happens after delivery."""
+    drone: drone_models.Drone | None = db.query(drone_models.Drone).filter(drone_models.Drone.id == drone_id).first()
+    if drone is None:
+        raise HTTPException(status_code=404, detail="Drone not found")
+    
+    cargo_data: Any = getattr(drone, "current_cargo", None)
+    current_cargo: list[dict[str, Any]] = list(cargo_data) if cargo_data else []
+    
+    # Find and remove item from cargo
+    found = False
+    item_to_remove: dict[str, Any] | None = None
+    for item in current_cargo:
+        if item.get("item_id") == cargo.item_id:
+            current_qty: int = item.get("quantity", 0)
+            if current_qty < cargo.quantity:
+                raise HTTPException(status_code=400, detail=f"Not enough quantity to unload (have {current_qty}, requested {cargo.quantity})")
+            
+            item["quantity"] = current_qty - cargo.quantity
+            total_qty = current_qty
+            weight_per_unit: float = item.get("weight_kg", 0.0) / total_qty if total_qty > 0 else 0.0
+            item["weight_kg"] = item.get("weight_kg", 0.0) - (weight_per_unit * cargo.quantity)
+            
+            current_weight: float = getattr(drone, "current_weight", 0.0)
+            setattr(drone, "current_weight", current_weight - (weight_per_unit * cargo.quantity))
+            
+            # Remove item entirely if quantity is 0
+            if item["quantity"] == 0:
+                item_to_remove = item
+            
+            found = True
+            break
+    
+    if not found:
+        raise HTTPException(status_code=404, detail="Item not found in cargo")
+    
+    if item_to_remove:
+        current_cargo.remove(item_to_remove)
+    
+    setattr(drone, "current_cargo", current_cargo)
+    
+    # If cargo is empty, set status to available
+    if len(current_cargo) == 0:
+        setattr(drone, "status", drone_models.DroneStatus.AVAILABLE.value)
+        setattr(drone, "current_weight", 0.0)
+    
+    db.commit()
+    db.refresh(drone)
+    return drone
+
 @router.post("/deliveries/", response_model=schemas.Delivery)
 def create_delivery(delivery: schemas.DeliveryCreate, db: Session = Depends(get_db)):
     # Check if order exists and doesn't have a delivery yet
@@ -159,16 +264,30 @@ def create_delivery(delivery: schemas.DeliveryCreate, db: Session = Depends(get_
     if hasattr(order, 'delivery') and order.delivery:
         raise HTTPException(status_code=400, detail="Order already has a delivery assigned")
     
-    # Check if drone is available
+    # Check if drone is available OR loaded (has cargo ready)
     drone = db.query(drone_models.Drone).filter(
         drone_models.Drone.id == delivery.drone_id,
-        drone_models.Drone.status == drone_models.DroneStatus.AVAILABLE.value,
         drone_models.Drone.is_active == True,
         drone_models.Drone.battery_level >= 20.0
     ).first()
     
     if not drone:
+        raise HTTPException(status_code=404, detail="Drone not found")
+    
+    # Allow delivery creation if drone is available or loaded
+    valid_statuses = [drone_models.DroneStatus.AVAILABLE.value, drone_models.DroneStatus.LOADED.value]
+    if drone.status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Drone is not available")
+    
+    # Check if drone has the required items loaded (basic check - could be enhanced with item_id validation)
+    cargo_data: Any = getattr(drone, "current_cargo", None)
+    current_cargo: list[dict[str, Any]] = list(cargo_data) if cargo_data else []
+    
+    if not current_cargo:
+        raise HTTPException(
+            status_code=400, 
+            detail="Drone has no cargo loaded. Load items onto the drone first using POST /drones/{drone_id}/load"
+        )
     
     # Create delivery and update drone status
     db_delivery = drone_models.Delivery(**delivery.model_dump())
@@ -193,14 +312,17 @@ def complete_delivery(delivery_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Delivery not found")
     
     setattr(delivery, "status", "completed")
-    # Optionally compute actual_delivery_time if timestamps are tracked; omitted here as created_at is not present
-    # setattr(delivery, "actual_delivery_time", int((datetime.now(timezone.utc) - delivery.created_at).total_seconds() / 60))
     
-    # Update drone status
+    # Update drone status and location
     drone = delivery.drone
+    
+    # Automatically unload all cargo upon delivery completion
+    setattr(drone, "current_cargo", [])
+    setattr(drone, "current_weight", 0.0)
     setattr(drone, "status", drone_models.DroneStatus.AVAILABLE.value)
+    
     # Move drone to the delivery destination (by id to avoid relationship issues)
     setattr(drone, "current_location_id", delivery.destination_location_id)
     
     db.commit()
-    return {"message": "Delivery completed successfully"}
+    return {"message": "Delivery completed successfully", "cargo_unloaded": True}
