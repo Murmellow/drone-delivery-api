@@ -199,13 +199,13 @@ flowchart TD
     Error2 --> End
     Error3 --> End
     
-    style Start fill:#90EE90
-    style End fill:#87CEEB
-    style Error1 fill:#FFB6C1
-    style Error2 fill:#FFB6C1
-    style Error3 fill:#FFB6C1
-    style ReadyForDelivery fill:#FFD700
-    style SetInDelivery fill:#FFA500
+  style Start fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+  style End fill:#bbdefb,stroke:#1565c0,stroke-width:3px,color:#000
+  style Error1 fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+  style Error2 fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+  style Error3 fill:#ffcdd2,stroke:#c62828,stroke-width:2px,color:#000
+  style ReadyForDelivery fill:#fff9c4,stroke:#f57f17,stroke-width:2px,color:#000
+  style SetInDelivery fill:#ffe0b2,stroke:#e65100,stroke-width:2px,color:#000
 ```
 
 ### Drone Status State Machine
@@ -282,7 +282,7 @@ sequenceDiagram
     D-->>API: Delivery 1 Created
     Note over D: Status: IN_DELIVERY
     
-    rect rgb(255, 200, 200)
+    rect rgb(255, 235, 235)
         Note over C2,D: Order 2 arrives while drone is busy
         C2->>API: POST /orders (Order 2)
         API-->>C2: Order 2 Created
@@ -302,7 +302,7 @@ sequenceDiagram
     API->>D: Update status: AVAILABLE
     D-->>API: Delivery 1 Complete
     
-    rect rgb(200, 255, 200)
+    rect rgb(235, 255, 235)
         Note over C2,D: Now drone is available for Order 2
         API->>D: POST /drones/1/load (Order 2 items)
         D-->>API: Status: LOADED
