@@ -639,7 +639,7 @@ Endpoint: `POST /api/v1/demo/flow`
 
 Request body:
 ```json
-{ "flow": "single" | "multi_queue", "reset": true }
+{ "flow": "single" | "multi_queue" | "existing_customer", "reset": true }
 ```
 - `reset` drops and recreates DB tables for a clean demo run.
 - Without `reset`, the endpoint appends a timestamp suffix to emails/serials so you can call it repeatedly without conflicts.
@@ -648,14 +648,23 @@ Responses include a `steps` array and a `summary` object. Steps show each action
 
 Examples:
 
-- Single delivery demo:
+- **Single delivery demo** (`"flow": "single"`):
   - Places one order, creates one delivery, returns `distance_km` and `estimated_delivery_minutes`.
 
-- Multi-queue demo:
+- **Multi-queue demo** (`"flow": "multi_queue"`):
   - Places order1, assigns delivery1, marks drone `in_delivery`.
   - Places order2 and attempts to assign delivery2 immediately → returns a failure step with `status_code: 400` and `detail: "Drone is not available"`.
   - Completes delivery1 (drone becomes `available` at destination).
   - Assigns delivery2 and returns `distance_km` and `estimated_delivery_minutes` for each delivery.
+
+- **Existing customer workflow** (`"flow": "existing_customer"`):
+  - Simulates a complete order-to-delivery cycle with cargo management.
+  - Customer places order with multiple items (Widget + Gadget).
+  - Loads cargo onto drone at warehouse with weight tracking (0.5kg + 1.0kg).
+  - Creates delivery (validates drone has cargo loaded).
+  - Simulates delivery in transit.
+  - Completes delivery (auto-unloads cargo, updates drone to `available` at customer location).
+  - Returns detailed summary including weight delivered and final drone state.
 
 ## Distance and ETA
 
@@ -712,6 +721,20 @@ curl -X POST http://127.0.0.1:8000/api/v1/demo/flow `
   -H "Content-Type: application/json" `
   -d '{"flow":"multi_queue","reset":true}'
 ```
+
+Run a complete existing customer workflow (order → cargo loading → delivery → completion):
+
+```powershell
+curl -X POST http://127.0.0.1:8000/api/v1/demo/flow `
+  -H "Content-Type: application/json" `
+  -d '{"flow":"existing_customer","reset":true}'
+```
+
+This workflow demonstrates:
+- Existing customer placing an order with multiple items
+- Loading cargo onto the drone at the warehouse (with weight tracking)
+- Creating a delivery (validates cargo is loaded)
+- Completing the delivery (auto-unloads cargo, updates drone location)
 
 ### Manual Flow
 
