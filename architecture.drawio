@@ -1,0 +1,199 @@
+<mxfile host="app.diagrams.net" modified="2025-10-30T00:00:00.000Z" agent="5.0" version="22.1.0" etag="drawio-diagram" type="device">
+  <diagram name="Drone Delivery Architecture" id="architecture">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Title -->
+        <mxCell id="title" value="Drone Delivery System Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="384" y="20" width="400" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Client Layer -->
+        <mxCell id="client-group" value="Client Layer" style="swimlane;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="80" width="240" height="160" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="swagger" value="Swagger UI&#xa;/docs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="client-group">
+          <mxGeometry x="20" y="40" width="90" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="curl" value="curl / HTTP&#xa;Clients" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="client-group">
+          <mxGeometry x="130" y="40" width="90" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="behave" value="Behave BDD&#xa;Tests" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="client-group">
+          <mxGeometry x="20" y="100" width="90" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="demo" value="Demo Flow&#xa;Endpoint" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="client-group">
+          <mxGeometry x="130" y="100" width="90" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- API Layer -->
+        <mxCell id="api-group" value="FastAPI Application" style="swimlane;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="280" width="1000" height="280" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="main" value="main.py&#xa;(FastAPI App)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1" vertex="1" parent="api-group">
+          <mxGeometry x="20" y="40" width="120" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Routers -->
+        <mxCell id="routers-label" value="Routers" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1" vertex="1" parent="api-group">
+          <mxGeometry x="180" y="40" width="60" height="20" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="customers-router" value="customers.py&#xa;/api/v1/customers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="api-group">
+          <mxGeometry x="180" y="70" width="130" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="items-router" value="items.py&#xa;/api/v1/items" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="api-group">
+          <mxGeometry x="330" y="70" width="130" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="orders-router" value="orders.py&#xa;/api/v1/orders" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="api-group">
+          <mxGeometry x="480" y="70" width="130" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="drones-router" value="drones.py&#xa;/api/v1/drones&#xa;+ deliveries" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1" vertex="1" parent="api-group">
+          <mxGeometry x="630" y="70" width="130" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="locations-router" value="locations.py&#xa;/api/v1/locations" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="api-group">
+          <mxGeometry x="780" y="70" width="130" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="demo-router" value="demo.py&#xa;/api/v1/demo/flow&#xa;(orchestration)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1" vertex="1" parent="api-group">
+          <mxGeometry x="330" y="140" width="130" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Core -->
+        <mxCell id="core-label" value="Core" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1" vertex="1" parent="api-group">
+          <mxGeometry x="180" y="210" width="60" height="20" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="config" value="config.py&#xa;(Settings)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;" vertex="1" parent="api-group">
+          <mxGeometry x="180" y="230" width="100" height="40" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="database" value="database.py&#xa;(Engine, Session)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;" vertex="1" parent="api-group">
+          <mxGeometry x="300" y="230" width="120" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Models & Schemas -->
+        <mxCell id="models-schemas-label" value="Domain Layer" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1" vertex="1" parent="api-group">
+          <mxGeometry x="480" y="210" width="100" height="20" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="models" value="models/&#xa;(SQLAlchemy ORM)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;" vertex="1" parent="api-group">
+          <mxGeometry x="480" y="230" width="120" height="40" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="schemas" value="schemas/&#xa;(Pydantic)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;" vertex="1" parent="api-group">
+          <mxGeometry x="620" y="230" width="120" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Business Logic -->
+        <mxCell id="logic-label" value="Business Logic" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1" vertex="1" parent="api-group">
+          <mxGeometry x="780" y="140" width="120" height="20" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="haversine" value="Haversine&#xa;Distance Calc" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="api-group">
+          <mxGeometry x="780" y="165" width="100" height="40" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="eta" value="ETA&#xa;Estimation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="api-group">
+          <mxGeometry x="780" y="215" width="100" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Data Layer -->
+        <mxCell id="data-group" value="Data Layer" style="swimlane;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;fontStyle=1;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="80" y="600" width="1000" height="160" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="sqlite" value="SQLite Database&#xa;(sql_app.db)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="data-group">
+          <mxGeometry x="100" y="40" width="120" height="80" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="tables" value="Tables:&#xa;• customers&#xa;• items&#xa;• orders/order_items&#xa;• drones&#xa;• deliveries&#xa;• locations&#xa;• users" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;align=left;fontColor=#333333;" vertex="1" parent="data-group">
+          <mxGeometry x="260" y="40" width="160" height="100" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="enums" value="Enums:&#xa;• DroneStatus&#xa;  (available, charging,&#xa;   in_delivery, maintenance,&#xa;   offline)&#xa;• OrderStatus" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;align=left;fontColor=#333333;" vertex="1" parent="data-group">
+          <mxGeometry x="460" y="40" width="200" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Deployment -->
+        <mxCell id="deploy-group" value="Deployment Options" style="swimlane;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="400" y="80" width="680" height="160" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="docker" value="Docker&#xa;(Recommended)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" vertex="1" parent="deploy-group">
+          <mxGeometry x="20" y="40" width="100" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="cloud-container" value="Cloud Container&#xa;(ECS, Cloud Run,&#xa;Azure ACI)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="deploy-group">
+          <mxGeometry x="140" y="40" width="120" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="paas" value="PaaS&#xa;(Heroku, Render,&#xa;Railway, Fly.io)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="deploy-group">
+          <mxGeometry x="280" y="40" width="120" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="k8s" value="Kubernetes&#xa;Orchestration" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="deploy-group">
+          <mxGeometry x="420" y="40" width="110" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="traditional" value="Traditional&#xa;Server&#xa;(Gunicorn+nginx)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="deploy-group">
+          <mxGeometry x="550" y="40" width="110" height="50" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="python-venv" value="Local Dev&#xa;(Python venv)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="deploy-group">
+          <mxGeometry x="20" y="100" width="100" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Flow Arrows -->
+        <mxCell id="arrow1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;fillColor=#dae8fc;strokeColor=#6c8ebf;" edge="1" parent="1" source="client-group" target="api-group">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="arrow1-label" value="HTTP Requests" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=11;fontStyle=1" vertex="1" connectable="0" parent="arrow1">
+          <mxGeometry x="-0.2" y="1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="arrow2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;strokeWidth=2;fillColor=#d5e8d4;strokeColor=#82b366;" edge="1" parent="1" source="api-group" target="sqlite">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="580" y="560" as="sourcePoint" />
+            <mxPoint x="240" y="640" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <mxCell id="arrow2-label" value="SQLAlchemy ORM" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=11;fontStyle=1" vertex="1" connectable="0" parent="arrow2">
+          <mxGeometry x="-0.2" y="1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Key Features Box -->
+        <mxCell id="features" value="Key Features:&#xa;✓ RESTful API with OpenAPI docs&#xa;✓ Drone status management&#xa;✓ Queue failure handling (busy drone)&#xa;✓ Distance &amp; ETA calculations&#xa;✓ Demo flows (single, multi_queue)&#xa;✓ BDD test coverage&#xa;✓ Docker-ready packaging" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="700" y="610" width="360" height="130" as="geometry" />
+        </mxCell>
+
+        <!-- Workflow Box -->
+        <mxCell id="workflow" value="Typical Workflow:&#xa;1. Create Locations (warehouse, customer)&#xa;2. Create Customer, Item, Drone&#xa;3. Place Order&#xa;4. Create Delivery (drone → in_delivery)&#xa;5. Complete Delivery (drone → available)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;align=left;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="280" width="280" height="130" as="geometry" />
+        </mxCell>
+
+        <!-- Tech Stack Box -->
+        <mxCell id="tech-stack" value="Tech Stack:&#xa;• FastAPI + Uvicorn&#xa;• SQLAlchemy 2.x&#xa;• Pydantic 2.x&#xa;• SQLite&#xa;• Behave + httpx (testing)&#xa;• Docker + docker-compose" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="430" width="280" height="130" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
