@@ -45,6 +45,49 @@ This collaborative approach allowed us to focus on requirements and design decis
 - Behave BDD tests (healthcheck, order + delivery flows, queue failure case)
 - Demo endpoint: run a full flow (single or multi-order with queuing) via one API call
 
+## Architecture
+
+The high-level architecture is illustrated below. The editable source diagram is available in `architecture.drawio`.
+
+```mermaid
+flowchart LR
+  %% Clients
+  subgraph C[Clients]
+    Swagger["Swagger UI (/docs)"]
+    Curl[curl / HTTP clients]
+    Behave[Behave BDD tests]
+    DemoClient[Demo flow caller]
+  end
+
+  %% FastAPI Application
+  subgraph A[FastAPI Application (app/main.py)]
+    Routers["Routers: customers, items, orders, drones (+deliveries), locations, demo"]
+    Core["Core: config.py, database.py"]
+    Domain["Domain: models (SQLAlchemy), schemas (Pydantic)"]
+    Logic["Logic: distance (Haversine), ETA estimation"]
+  end
+
+  %% Data Layer
+  subgraph D[Data Layer]
+    DB[(SQLite sql_app.db)]
+  end
+
+  %% Deployment Options
+  subgraph Deploy[Deployment Options]
+    Docker[Docker & docker-compose]
+    K8s[Kubernetes]
+    PaaS[PaaS: Heroku / Render / Railway / Fly.io]
+    Server[Traditional server (Gunicorn + nginx)]
+    Lambda[AWS Lambda + API Gateway (Mangum)]
+  end
+
+  C -->|HTTP requests| A
+  A -->|SQLAlchemy ORM| DB
+
+  %% Note: Deployments target the same application package
+  Deploy -. uses .-> A
+```
+
 ## Tech Stack
 
 - Python 3.14
