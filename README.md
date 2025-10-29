@@ -50,42 +50,53 @@ This collaborative approach allowed us to focus on requirements and design decis
 The high-level architecture is illustrated below. The editable source diagram is available in `architecture.drawio`.
 
 ```mermaid
-flowchart LR
+graph LR
   %% Clients
-  subgraph C[Clients]
-    Swagger["Swagger UI (/docs)"]
-    Curl[curl / HTTP clients]
-    Behave[Behave BDD tests]
-    DemoClient[Demo flow caller]
+  subgraph Clients
+    swagger["Swagger UI (/docs)"]
+    curl["curl / HTTP clients"]
+    behave["Behave BDD tests"]
+    demo["Demo flow caller"]
   end
 
   %% FastAPI Application
-  subgraph A[FastAPI Application (app/main.py)]
-    Routers["Routers: customers, items, orders, drones (+deliveries), locations, demo"]
-    Core["Core: config.py, database.py"]
-    Domain["Domain: models (SQLAlchemy), schemas (Pydantic)"]
-    Logic["Logic: distance (Haversine), ETA estimation"]
+  subgraph FastAPI_Application
+    main["FastAPI application (app/main.py)"]
+    routers["Routers: customers, items, orders, drones, locations, demo"]
+    core["Core: config.py, database.py"]
+    domain["Domain: models (SQLAlchemy), schemas (Pydantic)"]
+    logic["Logic: Haversine distance, ETA estimation"]
   end
 
   %% Data Layer
-  subgraph D[Data Layer]
-    DB[(SQLite sql_app.db)]
+  subgraph Data_Layer
+    db[(SQLite sql_app.db)]
   end
 
   %% Deployment Options
-  subgraph Deploy[Deployment Options]
-    Docker[Docker & docker-compose]
-    K8s[Kubernetes]
-    PaaS[PaaS: Heroku / Render / Railway / Fly.io]
-    Server[Traditional server (Gunicorn + nginx)]
-    Lambda[AWS Lambda + API Gateway (Mangum)]
+  subgraph Deployment_Options
+    docker["Docker & docker-compose"]
+    k8s[Kubernetes]
+    paas["PaaS (Heroku, Render, Railway, Fly.io)"]
+    server["Traditional server (Gunicorn + nginx)"]
+    lambda_aws["AWS Lambda + API Gateway (Mangum)"]
   end
 
-  C -->|HTTP requests| A
-  A -->|SQLAlchemy ORM| DB
+  %% Client -> App
+  swagger --> main
+  curl --> main
+  behave --> main
+  demo --> main
 
-  %% Note: Deployments target the same application package
-  Deploy -. uses .-> A
+  %% App -> DB
+  main --> db
+
+  %% Deployments target the same application package
+  docker -.-> main
+  k8s -.-> main
+  paas -.-> main
+  server -.-> main
+  lambda_aws -.-> main
 ```
 
 ## Tech Stack
