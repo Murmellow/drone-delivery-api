@@ -1,14 +1,17 @@
-from sqlalchemy import Column, Integer, Float, String
+from __future__ import annotations
+
+from sqlalchemy import Integer, Float, String
+from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
 class Location(Base):
     __tablename__ = "locations"
 
-    id = Column(Integer, primary_key=True, index=True)
-    latitude: Column[float] = Column(Float, nullable=False)
-    longitude: Column[float] = Column(Float, nullable=False)
-    altitude: Column[float] = Column(Float, nullable=False, default=0.0)
-    name = Column(String, index=True, nullable=True)  # Optional name for the location (e.g., "Warehouse-A", "Delivery Zone 1")
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    latitude: Mapped[float] = mapped_column(Float, nullable=False)
+    longitude: Mapped[float] = mapped_column(Float, nullable=False)
+    altitude: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    name: Mapped[str | None] = mapped_column(String, index=True, nullable=True)  # Optional name
 
     @property
     def longitude_degrees(self) -> float:

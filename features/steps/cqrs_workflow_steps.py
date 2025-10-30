@@ -121,17 +121,16 @@ def step_verify_drone_has_cargo(context: Context, serial: str):
     """Verify that the drone has cargo loaded."""
     context_with_client = cast(ContextWithClient, context)
     
-    async def _run():
+    # Query directly from database with fresh session to see worker's committed changes
+    engine = create_engine(settings.DATABASE_URL)
+    with Session(engine) as session:
         drone_id = context_with_client.drone["id"]
-        resp = await _get(context_with_client, f"/api/v1/drones/{drone_id}")
-        assert resp.status_code == 200, resp.text
-        drone_data = resp.json()
-        print(f"DEBUG: Drone {serial} data: {drone_data}")  # Debug output
-        assert len(drone_data["current_cargo"]) > 0, f"Drone {serial} has no cargo loaded"
-        # Update context with latest drone data
-        context_with_client.drone = drone_data
-    
-    anyio.run(_run)
+        stmt = select(Drone).where(Drone.id == drone_id)
+        drone = session.execute(stmt).scalar_one_or_none()
+        assert drone is not None, f"Drone {serial} not found"
+        print(f"DEBUG: Drone {serial} cargo: {drone.current_cargo}, weight: {drone.current_weight}")
+        assert len(drone.current_cargo) > 0, f"Drone {serial} has no cargo loaded"
+        assert drone.current_weight > 0, f"Drone {serial} weight is {drone.current_weight}"
 
 @typed_then('a delivery should exist for the last order')
 def step_verify_delivery_exists(context: Context):
@@ -174,14 +173,15 @@ def step_verify_drone_no_cargo(context: Context, serial: str):
     """Verify that the drone has no cargo."""
     context_with_client = cast(ContextWithClient, context)
     
-    async def _run():
+    # Query directly from database with fresh session to see worker's committed changes
+    engine = create_engine(settings.DATABASE_URL)
+    with Session(engine) as session:
         drone_id = context_with_client.drone["id"]
-        resp = await _get(context_with_client, f"/api/v1/drones/{drone_id}")
-        assert resp.status_code == 200, resp.text
-        drone_data = resp.json()
-        assert len(drone_data["current_cargo"]) == 0, f"Drone {serial} still has cargo: {drone_data['current_cargo']}"
-    
-    anyio.run(_run)
+        stmt = select(Drone).where(Drone.id == drone_id)
+        drone = session.execute(stmt).scalar_one_or_none()
+        assert drone is not None, f"Drone {serial} not found"
+        assert len(drone.current_cargo) == 0, f"Drone {serial} still has cargo: {drone.current_cargo}"
+        assert drone.current_weight == 0.0, f"Drone {serial} weight is {drone.current_weight}"
 
 @typed_when('I load cargo onto drone "{serial}" with item "{item_title}" quantity {quantity:d} weight {weight:f}')
 def step_load_cargo_on_drone(context: Context, serial: str, item_title: str, quantity: int, weight: float):

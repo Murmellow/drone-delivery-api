@@ -1,18 +1,17 @@
 import json
-import os
-from typing import Any, Dict, List
+from typing import Any
 
 from app.core.database import SessionLocal, Base, engine
+from sqlalchemy.orm import Session
 from app.models import drone as drone_models
 from app.models import item as item_models
 from app.models import order as order_models
-from app.models import location as location_models
 
 # Ensure tables exist (for demo with SQLite /tmp)
 Base.metadata.create_all(bind=engine)
 
 
-def _load_cargo(db, drone_id: int, item_id: int, quantity: int, weight_kg: float) -> Dict[str, Any]:
+def _load_cargo(db: Session, drone_id: int, item_id: int, quantity: int, weight_kg: float) -> dict[str, Any]:
     drone = db.query(drone_models.Drone).filter(drone_models.Drone.id == drone_id).first()
     item = db.query(item_models.Item).filter(item_models.Item.id == item_id).first()
     if not drone or not item:
@@ -37,7 +36,7 @@ def _load_cargo(db, drone_id: int, item_id: int, quantity: int, weight_kg: float
     return {"ok": True, "drone_id": drone_id, "current_weight": getattr(drone, "current_weight", 0.0)}
 
 
-def _create_delivery(db, order_id: int, drone_id: int, start_location_id: int, destination_location_id: int) -> Dict[str, Any]:
+def _create_delivery(db: Session, order_id: int, drone_id: int, start_location_id: int, destination_location_id: int) -> dict[str, Any]:
     order = db.query(order_models.Order).filter(order_models.Order.id == order_id).first()
     drone = db.query(drone_models.Drone).filter(drone_models.Drone.id == drone_id).first()
     if not order or not drone:
@@ -62,7 +61,7 @@ def _create_delivery(db, order_id: int, drone_id: int, start_location_id: int, d
     return {"ok": True, "delivery_id": delv.id, "drone_status": drone.status}
 
 
-def _complete_delivery(db, delivery_id: int, drone_id: int) -> Dict[str, Any]:
+def _complete_delivery(db: Session, delivery_id: int, drone_id: int) -> dict[str, Any]:
     delivery = db.query(drone_models.Delivery).filter(drone_models.Delivery.id == delivery_id).first()
     if not delivery:
         return {"ok": False, "detail": "Delivery not found"}
@@ -77,14 +76,15 @@ def _complete_delivery(db, delivery_id: int, drone_id: int) -> Dict[str, Any]:
     return {"ok": True, "delivery_id": delivery_id}
 
 
-def handler(event, context):  # SQS batch
+def handler(event: dict[str, Any], context: Any):  # SQS batch
     # event["Records"] contains SQS messages
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     db = SessionLocal()
     try:
         for rec in event.get("Records", []):
             body = json.loads(rec.get("body", "{}"))
             msg_type = body.get("type")
+            res: dict[str, Any]
             if msg_type == "LoadCargoRequested":
                 res = _load_cargo(
                     db,

@@ -3,6 +3,10 @@ from behave.runner import Context # type: ignore
 import anyio
 from typing import Any, Protocol, TypeVar, cast, TypedDict
 from collections.abc import Callable, Iterable, Mapping
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
+from app.models.drone import Drone
+from app.core.config import settings
 
 # Typed aliases for behave step decorators to satisfy type checkers
 F = TypeVar("F", bound=Callable[..., Any])
@@ -35,12 +39,13 @@ class ContextWithClient(Protocol):
     client: HttpClientLike
     response: ResponseLike | None
     locations: dict[str, Any]
-    customer: dict[str, Any]  # Added to satisfy type checker
-    items: dict[str, Any]     # Added to satisfy type checker for items
-    drone: dict[str, Any]     # Added to satisfy type checker for drone
-    order: dict[str, Any]     # Added to satisfy type checker for order
-    delivery: dict[str, Any]  # Added to satisfy type checker for delivery
-    table: Iterable[Mapping[str, str]]  # Behave step table (rows with string values)
+    customer: dict[str, Any]  # Last created customer
+    customers: dict[str, Any]  # Map of customers by email
+    items: dict[str, Any]     # Map of items by title -> id
+    drone: dict[str, Any]
+    order: dict[str, Any]
+    delivery: dict[str, Any]
+    table: Iterable[Mapping[str, str]]
 
 class OrderLine(TypedDict):
     item_id: str
@@ -93,18 +98,17 @@ def step_create_location(context: Context, name: str, lat: float, lon: float):
 
 @typed_given('a customer exists with first name "{first}", last name "{last}", email "{email}", phone "{phone}", address "{address}", and location "{loc_name}"')
 def step_create_customer(context: Context, first: str, last: str, email: str, phone: str, address: str, loc_name: str):
-    # Explicitly cast context to ContextWithClient for type checking
     context_with_client = cast(ContextWithClient, context)
 
-    # Ensure context has required attributes for ContextWithClient
     if not hasattr(context_with_client, "client"):
         raise AttributeError("Context is missing required 'client' attribute for HTTP calls.")
     if not hasattr(context_with_client, "response"):
-        context_with_client.response = None  # type: ignore # type: ResponseLike | None
+        context_with_client.response = None  # type: ignore
 
-    # Ensure context has 'locations' attribute for storing location ids
     if not hasattr(context_with_client, "locations"):
         context_with_client.locations = {}
+    if not hasattr(context_with_client, "customers"):
+        context_with_client.customers = {}
 
     async def _run():
         location_id: str = context_with_client.locations[loc_name]  # type: ignore
@@ -117,7 +121,9 @@ def step_create_customer(context: Context, first: str, last: str, email: str, ph
             "location_id": location_id
         })
         assert resp.status_code == 200, resp.text
-        context_with_client.customer = resp.json()
+        data = resp.json()
+        context_with_client.customer = data
+        context_with_client.customers[email] = data
     anyio.run(_run)
 
 @typed_given('an item exists titled "{title}" priced {price:f} with stock {stock:d}')
@@ -171,16 +177,15 @@ def step_place_order(context: Context, email: str):
         quantity = int(row['quantity'])
         item_id = context_with_client.items[item_title]
         items.append({"item_id": item_id, "quantity": quantity})
-        item_title = row['item_title']
-        quantity = int(row['quantity'])
-        item_id = context_with_client.items[item_title]
-        items.append({"item_id": item_id, "quantity": quantity})
 
     async def _run():
-        customer_id = context_with_client.customer["id"]
+        if email in context_with_client.customers:
+            customer = context_with_client.customers[email]
+        else:
+            customer = context_with_client.customer
         resp = await _post(context_with_client, "/api/v1/orders/", {
-            "customer_id": customer_id,
-            "delivery_address": context_with_client.customer.get("address", ""),
+            "customer_id": customer["id"],
+            "delivery_address": customer.get("address", ""),
             "items": items
         })
         assert resp.status_code == 200, resp.text
@@ -199,9 +204,10 @@ def step_create_delivery(context: Context, serial: str):
     async def _run():
         order_id = context_with_client.order["id"]
         drone_id = context_with_client.drone["id"]
-        # Use known start/destination from stored locations
-        start_location_id = context_with_client.locations["Warehouse A"]
-        destination_location_id = context_with_client.locations["Customer Home"]
+        # Use the drone's current location as start
+        start_location_id = context_with_client.drone["current_location_id"]
+        # Use the order's delivery location
+        destination_location_id = context_with_client.order["delivery_location_id"]
         resp = await _post(context_with_client, "/api/v1/drones/deliveries/", {
             "order_id": order_id,
             "drone_id": drone_id,
@@ -227,9 +233,10 @@ def step_attempt_create_delivery(context: Context, serial: str):
     async def _run():
         order_id = context_with_client.order["id"]
         drone_id = context_with_client.drone["id"]
-        # Use known start/destination from stored locations
-        start_location_id = context_with_client.locations["Warehouse A"]
-        destination_location_id = context_with_client.locations["Customer Home"]
+        # Use the drone's current location as start
+        start_location_id = context_with_client.drone["current_location_id"]
+        # Use the order's delivery location
+        destination_location_id = context_with_client.order["delivery_location_id"]
         resp = await _post(context_with_client, "/api/v1/drones/deliveries/", {
             "order_id": order_id,
             "drone_id": drone_id,
@@ -237,7 +244,6 @@ def step_attempt_create_delivery(context: Context, serial: str):
             "destination_location_id": destination_location_id
         })
         # Do not assert success; we expect failure in some scenarios
-        # Keep the last response on the context for later assertions
         context_with_client.response = resp
     anyio.run(_run)
 
@@ -264,6 +270,11 @@ def step_complete_last_delivery(context: Context):
         delivery_id = context_with_client.delivery["id"]
         resp = await _patch(context_with_client, f"/api/v1/drones/deliveries/{delivery_id}/complete")
         assert resp.status_code == 200, resp.text
+        # Refresh drone state after delivery completion
+        drone_id = context_with_client.drone["id"]
+        drone_resp = await _get(context_with_client, f"/api/v1/drones/{drone_id}")
+        assert drone_resp.status_code == 200, drone_resp.text
+        context_with_client.drone = drone_resp.json()
     anyio.run(_run)
 
 @typed_when('I set the drone "{serial}" status to "{status}"')
@@ -278,19 +289,38 @@ def step_set_drone_status(context: Context, serial: str, status: str):
         context_with_client.drone = resp.json()
     anyio.run(_run)
 
-@typed_then('the drone "{serial}" status should be "{status}"')
-def step_assert_drone_status(context: Context, serial: str, status: str):
+@typed_when('I move the drone "{serial}" to location "{loc_name}"')
+@typed_given('I move the drone "{serial}" to location "{loc_name}"')
+@typed_then('I move the drone "{serial}" to location "{loc_name}"')
+def step_move_drone_to_location(context: Context, serial: str, loc_name: str):
     context_with_client = cast(ContextWithClient, context)
     async def _run():
         drone_id = context_with_client.drone["id"]
-        resp = await _get(context_with_client, f"/api/v1/drones/{drone_id}")
+        assert context_with_client.drone["serial_number"] == serial
+        location_id = context_with_client.locations[loc_name]
+        resp = await _patch(context_with_client, f"/api/v1/drones/{drone_id}/location", json={"location_id": location_id})
         assert resp.status_code == 200, resp.text
-        data = resp.json()
-        assert data["serial_number"] == serial, f"Expected serial {serial}, got {data['serial_number']}"
-        assert data["status"] == status, f"Expected status {status}, got {data['status']}"
+        context_with_client.drone = resp.json()
     anyio.run(_run)
 
+@typed_then('the drone "{serial}" status should be "{status}"')
+def step_assert_drone_status(context: Context, serial: str, status: str):
+    context_with_client = cast(ContextWithClient, context)
+    
+    # Query directly from database with fresh session to see worker's committed changes
+    # This is especially important for CQRS scenarios where worker thread commits separately
+    engine = create_engine(settings.DATABASE_URL)
+    with Session(engine) as session:
+        drone_id = context_with_client.drone["id"]
+        stmt = select(Drone).where(Drone.id == drone_id)
+        drone = session.execute(stmt).scalar_one_or_none()
+        assert drone is not None, f"Drone {serial} not found"
+        assert drone.serial_number == serial, f"Expected serial {serial}, got {drone.serial_number}"
+        assert drone.status == status, f"Expected status {status}, got {drone.status}"
+
 @typed_when('I load cargo onto drone "{serial}" with item {item_id:d} quantity {quantity:d} weight {weight:f}')
+@typed_given('I load cargo onto drone "{serial}" with item {item_id:d} quantity {quantity:d} weight {weight:f}')
+@typed_then('I load cargo onto drone "{serial}" with item {item_id:d} quantity {quantity:d} weight {weight:f}')
 def step_load_cargo(context: Context, serial: str, item_id: int, quantity: int, weight: float):
     context_with_client = cast(ContextWithClient, context)
     async def _run():

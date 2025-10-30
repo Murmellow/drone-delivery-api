@@ -29,6 +29,7 @@ class Order(OrderBase):
     total_amount: float
     status: str
     order_date: datetime
+    delivery_location_id: int
     items: list[OrderItem]
     class Config:
         from_attributes = True

@@ -33,6 +33,10 @@ class UnloadCargoRequest(BaseModel):
     item_id: int
     quantity: int = Field(..., gt=0)
 
+class MoveDroneRequest(BaseModel):
+    """Request to move a drone to a different location (restricted to warehouses)."""
+    location_id: int
+
 class DeliveryBase(BaseModel):
     order_id: int
     drone_id: int

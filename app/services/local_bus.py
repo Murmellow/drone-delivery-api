@@ -4,7 +4,7 @@ import json
 import threading
 import time
 from queue import Queue, Empty
-from typing import Any, Dict, List
+from typing import Any
 
 from app.core.database import Base, engine
 
@@ -42,7 +42,7 @@ class LocalQueueBus:
     def _run(self) -> None:
         while not self._stop:
             try:
-                batch: List[dict[str, Any]] = []
+                batch: list[dict[str, Any]] = []
                 # Drain up to 10 messages to simulate SQS batch
                 for _ in range(10):
                     try:

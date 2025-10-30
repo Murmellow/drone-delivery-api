@@ -1,16 +1,16 @@
 import json
 import os
 import boto3
-from typing import Any, Dict
+from typing import Any
 
 sf_client = boto3.client("stepfunctions")
 
 STATE_MACHINE_ARN = os.getenv("STATE_MACHINE_ARN", "")
 
 
-def handler(event, context):
+def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # Expect body JSON with fields referenced in the state machine (order_id, drone_id, etc.)
-    body: Dict[str, Any]
+    body: dict[str, Any]
     if event.get("body"):
         try:
             body = json.loads(event["body"])

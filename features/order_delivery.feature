@@ -14,6 +14,7 @@ Feature: Place order and assign drone for delivery
       | item_title | quantity |
       | Widget     | 2        |
     Then the order status should be "pending"
+    And I load cargo onto drone "DRN-001" with item 1 quantity 2 weight 2.0
     When I create a delivery for the last order using drone "DRN-001"
     Then I can fetch the delivery and it should exist
 
@@ -28,6 +29,7 @@ Feature: Place order and assign drone for delivery
     When I place an order for customer "john@example.com" with items:
       | item_title | quantity |
       | Gadget     | 1        |
+    And I load cargo onto drone "DRN-001" with item 1 quantity 1 weight 1.0
     And I create a delivery for the last order using drone "DRN-001"
     When I place an order for customer "jane@example.com" with items:
       | item_title | quantity |
@@ -35,6 +37,8 @@ Feature: Place order and assign drone for delivery
     When I attempt to create a delivery for the last order using drone "DRN-001"
     Then the last response should be 400 with message "Drone is not available"
     And I complete the last delivery
+    And I move the drone "DRN-001" to location "Warehouse A"
+    And I load cargo onto drone "DRN-001" with item 1 quantity 2 weight 2.0
     And I create a delivery for the last order using drone "DRN-001"
     Then I can fetch the delivery and it should exist
 
@@ -56,7 +60,7 @@ Feature: Place order and assign drone for delivery
       | item_title | quantity |
       | Tablet     | 1        |
     When I attempt to create a delivery for the last order using drone "DRN-002"
-    Then the last response should be 400 with message "Drone has no cargo loaded. Load items onto the drone first using POST /drones/{drone_id}/load"
+    Then the last response should be 400 with message "Drone is not available"
     When I load cargo onto drone "DRN-002" with item 1 quantity 1 weight 2.5
     Then the drone "DRN-002" status should be "loaded"
     And the drone "DRN-002" should have cargo weight 2.5

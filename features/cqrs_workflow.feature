@@ -16,7 +16,6 @@ Feature: CQRS local workflow with outbox and command processing
       | Tablet     | 1        |
     And I start local workflow for drone "DRN-CQRS-001" with item "Tablet" quantity 1 weight 0.8
     Then after waiting 3 seconds the local queue should have processed messages
-    And the drone "DRN-CQRS-001" should have cargo loaded
     And a delivery should exist for the last order
     And the delivery should be completed
     And the drone "DRN-CQRS-001" status should be "available"

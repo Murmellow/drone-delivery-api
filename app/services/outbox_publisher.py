@@ -4,7 +4,7 @@ import json
 import threading
 import time
 from datetime import datetime, timezone
-from typing import Optional, Any
+from typing import Any
 
 import boto3  # type: ignore
 from sqlalchemy.orm import Session
@@ -15,12 +15,15 @@ from app.models.outbox import Outbox
 
 
 class OutboxPublisher:
+    _thread: threading.Thread | None
+    _sqs: Any | None
+    _local: Any | None
     def __init__(self, interval_sec: float = 1.0):
         self.interval_sec = interval_sec
         self._stop = False
-        self._thread: Optional[threading.Thread] = None
-        self._sqs: Any | None = None
-        self._local: Any | None = None
+        self._thread = None
+        self._sqs = None
+        self._local = None
         if settings.AWS_REGION and settings.AWS_SQS_QUEUE_URL:
             self._sqs = boto3.client("sqs", region_name=settings.AWS_REGION)
         else:
