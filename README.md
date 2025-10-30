@@ -568,6 +568,14 @@ Included files:
 - `aws/template.yaml`: AWS SAM template to deploy a Lambda + HTTP API (API Gateway)
 - `requirements.txt`: includes `mangum` for Lambda support
 
+Extended serverless flow (optional, event-driven):
+- SQS FIFO queue for commands (per-drone ordering)
+- Lambda `CommandWorker` consuming SQS and applying domain actions (load cargo, create/complete delivery)
+- Step Functions state machine `DroneOrderToDelivery` that sends SQS commands for each step
+- Lambda `StartWorkflow` to trigger the state machine via an HTTP endpoint `/workflow/start`
+
+These resources are defined in `aws/template.yaml` and functions live in `aws/functions/`.
+
 Deploy with AWS SAM:
 
 ```powershell
@@ -608,6 +616,7 @@ Prefix: `/api/v1`
 - Drone status: `PATCH /drones/{drone_id}/status?status=available|...`
 - Deliveries: `POST /drones/deliveries/`, `GET /drones/deliveries/{id}`, `PATCH /drones/deliveries/{id}/complete`
 - Demo flows: `POST /demo/flow` (see below)
+- CQRS Commands (async): `POST /commands/deliveries` (enqueues DeliveryRequested to outbox → SQS)
 
 ### Typical Flow (manually via API)
 

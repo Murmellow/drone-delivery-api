@@ -44,6 +44,116 @@ Resources:
           # For production, switch to RDS/Aurora or DynamoDB and adjust DATABASE_URL accordingly
           DATABASE_URL: sqlite:////tmp/sql_app.db
 
+  # SQS FIFO queue for command processing (per-drone ordering using MessageGroupId)
+  CommandsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      FifoQueue: true
+      ContentBasedDeduplication: true
+      VisibilityTimeout: 60
+      QueueName: drone-commands.fifo
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt CommandsDLQ.Arn
+        maxReceiveCount: 5
+
+  CommandsDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      FifoQueue: true
+      QueueName: drone-commands-dlq.fifo
+
+  # Lambda worker that consumes SQS messages and applies domain logic
+  CommandWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: aws/functions/command_worker.handler
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt CommandsQueue.Arn
+            BatchSize: 10
+      Environment:
+        Variables:
+          DATABASE_URL: sqlite:////tmp/sql_app.db
+      Policies:
+        - SQSPollerPolicy:
+            QueueName: !GetAtt CommandsQueue.QueueName
+
+  # Lambda to start a Step Functions state machine execution
+  StartWorkflow:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: aws/functions/start_workflow.handler
+      Environment:
+        Variables:
+          STATE_MACHINE_ARN: !Ref OrderWorkflow
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - states:StartExecution
+            Resource: "*"
+      Events:
+        StartExecutionApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /workflow/start
+            Method: POST
+
+  # Step Functions state machine orchestrating order-to-delivery via SQS commands
+  OrderWorkflow:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: DroneOrderToDelivery
+      Definition:
+        Comment: "Order to Delivery workflow using SQS commands"
+        StartAt: LoadCargo
+        States:
+          LoadCargo:
+            Type: Task
+            Resource: arn:aws:states:::sqs:sendMessage
+            Parameters:
+              QueueUrl: !Ref CommandsQueue
+              MessageBody:
+                type: "LoadCargoRequested"
+                drone_id.$: "$..drone_id"
+                item_id.$: "$..item_id"
+                quantity.$: "$..quantity"
+                weight_kg.$: "$..weight_kg"
+              MessageGroupId.$: "$..drone_id"
+            Next: CreateDelivery
+          CreateDelivery:
+            Type: Task
+            Resource: arn:aws:states:::sqs:sendMessage
+            Parameters:
+              QueueUrl: !Ref CommandsQueue
+              MessageBody:
+                type: "DeliveryRequested"
+                order_id.$: "$..order_id"
+                drone_id.$: "$..drone_id"
+                start_location_id.$: "$..start_location_id"
+                destination_location_id.$: "$..destination_location_id"
+              MessageGroupId.$: "$..drone_id"
+            Next: CompleteDelivery
+          CompleteDelivery:
+            Type: Task
+            Resource: arn:aws:states:::sqs:sendMessage
+            Parameters:
+              QueueUrl: !Ref CommandsQueue
+              MessageBody:
+                type: "DeliveryCompletionRequested"
+                delivery_id.$: "$..delivery_id"
+                drone_id.$: "$..drone_id"
+              MessageGroupId.$: "$..drone_id"
+            End: true
+      Policies:
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt CommandsQueue.QueueName
+
 Outputs:
   ApiUrl:
     Description: Base URL for the deployed HTTP API
