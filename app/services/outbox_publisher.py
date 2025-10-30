@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import json
-import os
 import threading
 import time
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Optional, Any
 
-import boto3
+import boto3  # type: ignore
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -19,9 +19,17 @@ class OutboxPublisher:
         self.interval_sec = interval_sec
         self._stop = False
         self._thread: Optional[threading.Thread] = None
-        self._sqs = None
+        self._sqs: Any | None = None
+        self._local: Any | None = None
         if settings.AWS_REGION and settings.AWS_SQS_QUEUE_URL:
             self._sqs = boto3.client("sqs", region_name=settings.AWS_REGION)
+        else:
+            # Fallback to in-process local bus for demos without AWS creds
+            try:
+                from app.services.local_bus import local_bus
+                self._local = local_bus
+            except Exception:
+                self._local = None
 
     def start(self) -> None:
         if self._thread is not None:
@@ -44,8 +52,6 @@ class OutboxPublisher:
             time.sleep(self.interval_sec)
 
     def _publish_pending(self) -> None:
-        if not self._sqs or not settings.AWS_SQS_QUEUE_URL:
-            return
         db: Session = SessionLocal()
         try:
             rows = (
@@ -56,25 +62,31 @@ class OutboxPublisher:
                 .all()
             )
             for row in rows:
-                payload = json.loads(row.payload)
+                payload_json = str(getattr(row, "payload"))
+                payload = json.loads(payload_json)
                 # Provide FIFO grouping if available
                 message_group_id = str(payload.get("drone_id", payload.get("aggregate_id", "default")))
-                dedup_id = f"outbox-{row.id}"
+                dedup_id = f"outbox-{getattr(row, 'id')}"
                 try:
-                    self._sqs.send_message(
-                        QueueUrl=settings.AWS_SQS_QUEUE_URL,
-                        MessageBody=json.dumps(payload),
-                        MessageGroupId=message_group_id,
-                        MessageDeduplicationId=dedup_id,
-                    )
-                    row.status = "published"
-                    from sqlalchemy.sql import func
-                    row.published_at = func.now()
+                    if self._sqs and settings.AWS_SQS_QUEUE_URL:
+                        self._sqs.send_message(
+                            QueueUrl=settings.AWS_SQS_QUEUE_URL,
+                            MessageBody=json.dumps(payload),
+                            MessageGroupId=message_group_id,
+                            MessageDeduplicationId=dedup_id,
+                        )
+                    elif self._local:
+                        self._local.send(payload, message_group_id, dedup_id)
+                    else:
+                        # No publisher configured
+                        continue
+                    setattr(row, "status", "published")
+                    setattr(row, "published_at", datetime.now(timezone.utc))
                     db.add(row)
                     db.commit()
                 except Exception as pub_ex:
-                    row.status = "failed"
-                    row.last_error = str(pub_ex)
+                    setattr(row, "status", "failed")
+                    setattr(row, "last_error", str(pub_ex))
                     db.add(row)
                     db.commit()
         finally:

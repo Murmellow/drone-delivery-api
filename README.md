@@ -574,7 +574,12 @@ Extended serverless flow (optional, event-driven):
 - Step Functions state machine `DroneOrderToDelivery` that sends SQS commands for each step
 - Lambda `StartWorkflow` to trigger the state machine via an HTTP endpoint `/workflow/start`
 
-These resources are defined in `aws/template.yaml` and functions live in `aws/functions/`.
+Local mock (no AWS credentials needed):
+- When `USE_CQRS=true` and `AWS_SQS_QUEUE_URL` is not set, the app starts an in-process LocalQueueBus
+- The outbox publisher sends messages to the LocalQueueBus, which invokes the same command worker logic
+- Start a local workflow via `POST /api/v1/commands/workflow/start-local`
+
+These resources are defined in `aws/template.yaml` and functions live in `aws/functions/`. The local mock lives under `app/services/local_bus.py`.
 
 Deploy with AWS SAM:
 
