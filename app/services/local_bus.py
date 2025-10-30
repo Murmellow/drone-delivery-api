@@ -56,13 +56,22 @@ class LocalQueueBus:
                 if command_worker is not None:
                     event = {"Records": [{"body": json.dumps(m)} for m in batch]}
                     # Call the same handler used in Lambda worker
-                    command_worker.handler(event, None)
+                    print(f"[LocalQueueBus] Processing {len(batch)} messages")  # Debug
+                    try:
+                        result = command_worker.handler(event, None)
+                        print(f"[LocalQueueBus] Result: {result}")  # Debug
+                    except Exception as e:
+                        print(f"[LocalQueueBus] Worker error: {e}")  # Debug
+                        import traceback
+                        traceback.print_exc()
                 else:
                     # Fallback: no-op if import failed
-                    pass
+                    print(f"[LocalQueueBus] command_worker is None")  # Debug
             except Exception as ex:  # pragma: no cover
                 # Log and continue; we don't want the local bus to crash the app
                 print(f"[LocalQueueBus] error: {ex}")
+                import traceback
+                traceback.print_exc()
 
 
 # Singleton instance

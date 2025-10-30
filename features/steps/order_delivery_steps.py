@@ -289,3 +289,77 @@ def step_assert_drone_status(context: Context, serial: str, status: str):
         assert data["serial_number"] == serial, f"Expected serial {serial}, got {data['serial_number']}"
         assert data["status"] == status, f"Expected status {status}, got {data['status']}"
     anyio.run(_run)
+
+@typed_when('I load cargo onto drone "{serial}" with item {item_id:d} quantity {quantity:d} weight {weight:f}')
+def step_load_cargo(context: Context, serial: str, item_id: int, quantity: int, weight: float):
+    context_with_client = cast(ContextWithClient, context)
+    async def _run():
+        drone_id = context_with_client.drone["id"]
+        # Ensure serial matches the known single drone assumption
+        assert context_with_client.drone["serial_number"] == serial
+        resp = await _post(context_with_client, f"/api/v1/drones/{drone_id}/load", {
+            "item_id": item_id,
+            "quantity": quantity,
+            "weight_kg": weight
+        })
+        assert resp.status_code == 200, resp.text
+        context_with_client.drone = resp.json()
+    anyio.run(_run)
+
+@typed_when('I attempt to load cargo onto drone "{serial}" with item {item_id:d} quantity {quantity:d} weight {weight:f}')
+def step_attempt_load_cargo(context: Context, serial: str, item_id: int, quantity: int, weight: float):
+    context_with_client = cast(ContextWithClient, context)
+    async def _run():
+        drone_id = context_with_client.drone["id"]
+        assert context_with_client.drone["serial_number"] == serial
+        resp = await _post(context_with_client, f"/api/v1/drones/{drone_id}/load", {
+            "item_id": item_id,
+            "quantity": quantity,
+            "weight_kg": weight
+        })
+        # Do not assert success; store response for later assertions
+        context_with_client.response = resp
+    anyio.run(_run)
+
+@typed_when('I unload cargo from drone "{serial}" with item {item_id:d} quantity {quantity:d}')
+def step_unload_cargo(context: Context, serial: str, item_id: int, quantity: int):
+    context_with_client = cast(ContextWithClient, context)
+    async def _run():
+        drone_id = context_with_client.drone["id"]
+        assert context_with_client.drone["serial_number"] == serial
+        resp = await _post(context_with_client, f"/api/v1/drones/{drone_id}/unload", {
+            "item_id": item_id,
+            "quantity": quantity
+        })
+        assert resp.status_code == 200, resp.text
+        context_with_client.drone = resp.json()
+    anyio.run(_run)
+
+@typed_then('the drone "{serial}" should have cargo weight {weight:f}')
+def step_assert_drone_cargo_weight(context: Context, serial: str, weight: float):
+    context_with_client = cast(ContextWithClient, context)
+    async def _run():
+        drone_id = context_with_client.drone["id"]
+        resp = await _get(context_with_client, f"/api/v1/drones/{drone_id}")
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["serial_number"] == serial, f"Expected serial {serial}, got {data['serial_number']}"
+        actual_weight = data.get("current_weight", 0.0)
+        assert abs(actual_weight - weight) < 0.01, f"Expected cargo weight {weight}, got {actual_weight}"
+    anyio.run(_run)
+
+@typed_then('the last response should be {status:d} with message containing "{partial_message}"')
+def step_assert_last_response_contains(context: Context, status: int, partial_message: str):
+    context_with_client = cast(ContextWithClient, context)
+    resp = context_with_client.response
+    assert resp is not None, "No response available to assert"
+    assert resp.status_code == status, f"Expected status {status}, got {resp.status_code}: {resp.text}"
+    data = resp.json()
+    if isinstance(data, dict):
+        data_dict: dict[str, Any] = data  # type: ignore
+        detail_value = data_dict.get("detail")
+        detail = str(detail_value) if detail_value is not None else None
+    else:
+        detail = None
+    assert detail is not None, f"Expected detail message containing '{partial_message}', but got no detail"
+    assert partial_message in detail, f"Expected message containing '{partial_message}', got '{detail}'"

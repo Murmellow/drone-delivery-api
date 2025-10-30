@@ -45,3 +45,45 @@ Feature: Place order and assign drone for delivery
     Then the drone "DRN-001" status should be "maintenance"
     When I set the drone "DRN-001" status to "available"
     Then the drone "DRN-001" status should be "available"
+
+  Scenario: Restocking workflow - load cargo before delivery
+    Given a location named "Warehouse A" at latitude 40.0 and longitude -74.0
+    And a location named "Customer Home" at latitude 40.01 and longitude -74.01
+    And a customer exists with first name "Alice", last name "Brown", email "alice@example.com", phone "789", address "789 Pine", and location "Customer Home"
+    And an item exists titled "Tablet" priced 299.99 with stock 50
+    And a drone exists model "DJI-X500" serial "DRN-002" payload 5.0 range 30.0 at location "Warehouse A"
+    When I place an order for customer "alice@example.com" with items:
+      | item_title | quantity |
+      | Tablet     | 1        |
+    When I attempt to create a delivery for the last order using drone "DRN-002"
+    Then the last response should be 400 with message "Drone has no cargo loaded. Load items onto the drone first using POST /drones/{drone_id}/load"
+    When I load cargo onto drone "DRN-002" with item 1 quantity 1 weight 2.5
+    Then the drone "DRN-002" status should be "loaded"
+    And the drone "DRN-002" should have cargo weight 2.5
+    When I create a delivery for the last order using drone "DRN-002"
+    Then I can fetch the delivery and it should exist
+    And the drone "DRN-002" status should be "in_delivery"
+    When I complete the last delivery
+    Then the drone "DRN-002" status should be "available"
+    And the drone "DRN-002" should have cargo weight 0.0
+
+  Scenario: Load multiple items and check payload capacity
+    Given a location named "Warehouse A" at latitude 40.0 and longitude -74.0
+    And a drone exists model "DJI-X500" serial "DRN-003" payload 5.0 range 30.0 at location "Warehouse A"
+    When I load cargo onto drone "DRN-003" with item 1 quantity 2 weight 2.0
+    Then the drone "DRN-003" should have cargo weight 2.0
+    When I load cargo onto drone "DRN-003" with item 2 quantity 1 weight 2.5
+    Then the drone "DRN-003" should have cargo weight 4.5
+    When I attempt to load cargo onto drone "DRN-003" with item 3 quantity 1 weight 1.0
+    Then the last response should be 400 with message containing "Exceeds payload capacity"
+
+  Scenario: Unload cargo manually
+    Given a location named "Warehouse A" at latitude 40.0 and longitude -74.0
+    And a drone exists model "DJI-X500" serial "DRN-004" payload 5.0 range 30.0 at location "Warehouse A"
+    When I load cargo onto drone "DRN-004" with item 1 quantity 3 weight 3.0
+    Then the drone "DRN-004" should have cargo weight 3.0
+    When I unload cargo from drone "DRN-004" with item 1 quantity 2
+    Then the drone "DRN-004" should have cargo weight 1.0
+    When I unload cargo from drone "DRN-004" with item 1 quantity 1
+    Then the drone "DRN-004" status should be "available"
+    And the drone "DRN-004" should have cargo weight 0.0
